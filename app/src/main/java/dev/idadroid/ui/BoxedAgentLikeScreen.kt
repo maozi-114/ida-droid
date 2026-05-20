@@ -1637,12 +1637,28 @@ private fun FileBrowserTab(manager: PiAgentManager, onInsertComposer: (String) -
 @Composable
 private fun PiSettingsTab(state: AgentUiState, manager: PiAgentManager) {
     var snapshot by remember { mutableStateOf(manager.getPiConfigSnapshot()) }
-    LaunchedEffect(state.piConfig) { snapshot = state.piConfig }
+    var showModelsEditor by remember { mutableStateOf(false) }
+    LaunchedEffect(state.piConfig) { if (!showModelsEditor) snapshot = state.piConfig }
+
+    if (showModelsEditor) {
+        AgentModelsEditorScreen(
+            initialJson = snapshot.modelsText,
+            onBack = { showModelsEditor = false },
+            onApply = { modelsJson ->
+                val next = snapshot.copy(modelsText = modelsJson)
+                snapshot = next
+                manager.savePiConfig(next)
+                showModelsEditor = false
+            }
+        )
+        return
+    }
+
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(14.dp)) { Text("Pi config", fontWeight = FontWeight.Bold); Text("PI_CODING_AGENT_DIR: ${snapshot.materializedDir}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) } } }
         item { state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) } }
         item { SettingsCard("模型与运行参数") { OutlinedTextField(snapshot.defaultProvider, { snapshot = snapshot.copy(defaultProvider = it) }, label = { Text("默认 Provider") }, singleLine = true, modifier = Modifier.fillMaxWidth()); OutlinedTextField(snapshot.defaultModel, { snapshot = snapshot.copy(defaultModel = it) }, label = { Text("默认 Model") }, singleLine = true, modifier = Modifier.fillMaxWidth()); DropdownField("Thinking", snapshot.defaultThinkingLevel, ThinkingLevels) { snapshot = snapshot.copy(defaultThinkingLevel = it) }; OutlinedTextField(snapshot.enabledModels, { snapshot = snapshot.copy(enabledModels = it) }, label = { Text("enabledModels") }, singleLine = true, modifier = Modifier.fillMaxWidth()) } }
-        item { SettingsCard("JSON 配置") { CodeTextField("环境变量 JSON", snapshot.envText) { snapshot = snapshot.copy(envText = it) }; CodeTextField("models.json", snapshot.modelsText) { snapshot = snapshot.copy(modelsText = it) }; CodeTextField("settings.json", snapshot.settingsText) { snapshot = snapshot.copy(settingsText = it) } } }
+        item { SettingsCard("JSON 配置") { OutlinedButton(onClick = { showModelsEditor = true }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Rounded.Tune, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("可视化编辑 models.json") }; Text("按 Provider / Compat / Model 分组编辑，保存后会写回 Agent models.json。", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp); CodeTextField("环境变量 JSON", snapshot.envText) { snapshot = snapshot.copy(envText = it) }; CodeTextField("models.json", snapshot.modelsText) { snapshot = snapshot.copy(modelsText = it) }; CodeTextField("settings.json", snapshot.settingsText) { snapshot = snapshot.copy(settingsText = it) } } }
         item { SettingsCard("插件与启动参数") { Text("每行一个传给 pi RPC 进程的额外参数，保存后重启 Session 生效。", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp); CodeTextField("extraArgs", snapshot.extraArgsText) { snapshot = snapshot.copy(extraArgsText = it) } } }
         item { SettingsCard("Prompt 与项目上下文") { CodeTextField("SYSTEM.md", snapshot.systemPrompt) { snapshot = snapshot.copy(systemPrompt = it) }; CodeTextField("APPEND_SYSTEM.md", snapshot.appendSystem) { snapshot = snapshot.copy(appendSystem = it) }; CodeTextField("AGENTS.md", snapshot.agentsMd) { snapshot = snapshot.copy(agentsMd = it) } } }
         item { Button(onClick = { manager.savePiConfig(snapshot) }, modifier = Modifier.fillMaxWidth()) { Text("保存 Pi 配置") } }
